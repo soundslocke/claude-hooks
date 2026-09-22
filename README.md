@@ -18,9 +18,12 @@ means allow.
 ## Install
 
 ```
-cargo build --release
-cp target/release/claude-hooks ~/.claude/hooks/claude-hooks
+just install
 ```
+
+That runs the tests, builds the release binary and installs it to
+`~/.claude/hooks/claude-hooks`. `just check` reports whether the installed
+binary matches the current build.
 
 `~/.claude/settings.json` points every PreToolUse matcher at that path. Pass a
 guard name as the only argument to run just that guard, which the tests and
