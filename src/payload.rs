@@ -1,8 +1,10 @@
-//! The PreToolUse payload, reduced to the fields the guards read.
+//! The hook payload, reduced to the fields the guards read.
 
 use serde_json::Value;
 
+#[derive(Default)]
 pub struct Payload {
+    pub hook_event_name: String,
     pub tool_name: String,
     pub command: String,
     pub file_path: String,
@@ -38,20 +40,21 @@ impl Payload {
             }
         }
 
-        Some(Payload {
-            tool_name: value
-                .get("tool_name")
+        let field = |key: &str| {
+            value
+                .get(key)
                 .and_then(Value::as_str)
                 .unwrap_or("")
-                .to_string(),
+                .to_string()
+        };
+
+        Some(Payload {
+            hook_event_name: field("hook_event_name"),
+            tool_name: field("tool_name"),
             command: text("command"),
             file_path: text("file_path"),
             new_text: pieces.join("\n"),
-            cwd: value
-                .get("cwd")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string(),
+            cwd: field("cwd"),
         })
     }
 }

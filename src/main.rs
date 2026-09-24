@@ -1,10 +1,12 @@
-//! Claude Code PreToolUse guards. Reads the payload on stdin, runs the guards
-//! that apply to the tool, and prints a deny decision when one objects.
+//! Claude Code hooks. Reads the payload on stdin. On PreToolUse it runs the
+//! guards that apply to the tool and prints a deny decision when one objects.
+//! On Stop it reports shells the session has left running.
 
 mod branch_upstream;
 mod commit_msg;
 mod emdash;
 mod payload;
+mod stale_shells;
 mod waiter_loop;
 
 use std::io::Read;
@@ -28,6 +30,13 @@ fn main() {
     let Some(payload) = Payload::parse(&raw) else {
         return;
     };
+
+    if payload.hook_event_name == "Stop" {
+        if let Some(report) = stale_shells::report() {
+            println!("{report}");
+        }
+        return;
+    }
 
     let guards: &[(&str, Guard)] = match payload.tool_name.as_str() {
         "Bash" | "Monitor" => BASH_GUARDS,
