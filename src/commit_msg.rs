@@ -42,6 +42,16 @@ static SESSION_TRAILER: LazyLock<Regex> =
 static SESSION_URL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)claude\.ai/code/session[_/]").unwrap());
 static CODE_SPAN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"`[^`]*`").unwrap());
+/// Framing that retells the old implementation instead of describing the
+/// change. The diff and the history already hold the previous state. Stating
+/// what a bug did is still fine in plain terms: "Coupon revenue ignored
+/// reversal_type", never "Previously coupon revenue ignored reversal_type".
+static NARRATION: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)\b(previously|formerly|beforehand|originally|historically|used to|prior to this|before this (?:change|commit|patch)|in the past|up (?:un)?til now)\b",
+    )
+    .unwrap()
+});
 
 // Spelled as escapes so this file holds no literal dash of its own.
 const DASHES: &[(char, &str)] = &[('\u{2014}', "emdash"), ('\u{2013}', "endash")];
@@ -259,6 +269,14 @@ fn check_prose(lines: &[&str], problems: &mut Vec<String>) {
             "{semicolons} semicolons, max {MAX_SEMICOLONS}: prefer plain sentences"
         ));
     }
+
+    if let Some(narration) = NARRATION.find(&prose) {
+        problems.push(format!(
+            "narrates the previous state ({:?}): say what the change does, and leave how \
+             things were to the diff",
+            narration.as_str().to_lowercase()
+        ));
+    }
 }
 
 /// Deny any Claude-Session trailer or session URL, trailer block included.
@@ -350,6 +368,18 @@ Co-Authored-By: Someone <s@example.com>";
         assert!(validate("Fix it\n\nA; B; C")
             .iter()
             .any(|p| p.contains("2 semicolons")));
+    }
+
+    #[test]
+    fn flags_narration_of_the_previous_state() {
+        assert!(validate("Fix it\n\nPreviously the cache never expired.")
+            .iter()
+            .any(|p| p.contains("\"previously\"")));
+        assert!(validate("Fix it\n\nThe loop used to spin forever.")
+            .iter()
+            .any(|p| p.contains("narrates")));
+        assert!(validate("Fix it\n\nCoupon revenue ignored reversal_type.").is_empty());
+        assert!(validate("Fix it\n\nRename `used to` in the parser.").is_empty());
     }
 
     #[test]
