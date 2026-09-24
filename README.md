@@ -13,7 +13,7 @@ session has left running for over 30 minutes, read from `/proc` (Linux only).
 |---|---|---|
 | `commit-msg` | Bash, Monitor | `git commit` messages that break the project format or carry a session link |
 | `branch-upstream` | Bash, Monitor | branches created from `origin/<other>` without `--no-track`, and upstream changes to another branch |
-| `waiter-loop` | Bash, Monitor | `while`/`until` loops on `sleep` with no `timeout` |
+| `waiter-loop` | Bash, Monitor | `while`/`until` loops on `sleep` with no `timeout`, loops that probe for a process (`pgrep`, `kill -0`), and follows of files under `/tmp` |
 | `emdash` | Write, Edit, MultiEdit | an em dash entering a source file |
 
 ## Install
