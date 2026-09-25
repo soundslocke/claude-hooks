@@ -14,6 +14,7 @@ session has left running for over 30 minutes, read from `/proc` (Linux only).
 | `commit-msg` | Bash, Monitor | `git commit` messages that break the project format or carry a session link |
 | `branch-upstream` | Bash, Monitor | branches created from `origin/<other>` without `--no-track`, and upstream changes to another branch |
 | `waiter-loop` | Bash, Monitor | `while`/`until` loops that sleep (`timeout` or not), spin, or probe for a process (`pgrep`, `kill -0`), `for` loops that poll past five minutes, and follows of files under `/tmp` |
+| `query-budget` | Bash, Monitor, Boost `database-query` | `artisan tinker` without `--execute`; tinker and `mysql`/`mariadb` runs not bounded to two minutes by both `timeout` and a server-side `max_statement_time` or `MAX_EXECUTION_TIME` hint; `database-query` SELECTs without a `MAX_EXECUTION_TIME` hint of at most 120000 |
 | `emdash` | Write, Edit, MultiEdit | an em dash entering any file |
 
 ## Install
@@ -27,9 +28,9 @@ That runs the tests, builds the release binary and installs it to
 binary matches the current build.
 
 `~/.claude/settings.json` points the PreToolUse matcher
-`Bash|Monitor|Write|Edit|MultiEdit` and the Stop hook at that path. Pass a
-guard name as the only argument to run just that guard, which the tests and
-benchmarks use.
+`Bash|Monitor|Write|Edit|MultiEdit|mcp__laravel-boost__database-query` and the
+Stop hook at that path. Pass a guard name as the only argument to run just that
+guard, which the tests and benchmarks use.
 
 ## Test
 

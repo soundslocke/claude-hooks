@@ -6,6 +6,7 @@ mod branch_upstream;
 mod commit_msg;
 mod emdash;
 mod payload;
+mod query_budget;
 mod stale_shells;
 mod waiter_loop;
 
@@ -19,8 +20,10 @@ const BASH_GUARDS: &[(&str, Guard)] = &[
     ("commit-msg", commit_msg::check),
     ("branch-upstream", branch_upstream::check),
     ("waiter-loop", waiter_loop::check),
+    ("query-budget", query_budget::check),
 ];
 const EDIT_GUARDS: &[(&str, Guard)] = &[("emdash", emdash::check)];
+const MCP_QUERY_GUARDS: &[(&str, Guard)] = &[("query-budget", query_budget::check_mcp_query)];
 
 fn main() {
     let mut raw = String::new();
@@ -41,6 +44,7 @@ fn main() {
     let guards: &[(&str, Guard)] = match payload.tool_name.as_str() {
         "Bash" | "Monitor" => BASH_GUARDS,
         "Write" | "Edit" | "MultiEdit" => EDIT_GUARDS,
+        "mcp__laravel-boost__database-query" => MCP_QUERY_GUARDS,
         _ => return,
     };
     let only = std::env::args().nth(1);

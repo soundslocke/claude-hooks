@@ -12,6 +12,8 @@ pub struct Payload {
     /// MultiEdit new_string.
     pub new_text: String,
     pub cwd: String,
+    /// SQL handed to the Boost `database-query` MCP tool.
+    pub query: String,
 }
 
 impl Payload {
@@ -55,6 +57,7 @@ impl Payload {
             file_path: text("file_path"),
             new_text: pieces.join("\n"),
             cwd: field("cwd"),
+            query: text("query"),
         })
     }
 }
