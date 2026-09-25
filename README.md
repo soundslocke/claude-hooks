@@ -32,6 +32,15 @@ binary matches the current build.
 Stop hook at that path. Pass a guard name as the only argument to run just that
 guard, which the tests and benchmarks use.
 
+## Public repo guard
+
+This repository is public. `githooks/` refuses a commit, commit message or push
+that carries a term from `~/.config/claude-hooks/private-terms` (one extended
+regex per line, matched case-insensitively). The terms stay outside the repo,
+since listing them here would publish them, and a machine without the file
+refuses every commit until it exists. `just install` (or `just hooks`) points
+`core.hooksPath` at `githooks/`.
+
 ## Test
 
 ```

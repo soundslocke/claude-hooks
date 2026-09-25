@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# Refuse commits and pushes that carry private terms into this public repo.
+#
+# The terms live outside the repo, in ~/.config/claude-hooks/private-terms
+# (one extended regex per line, # for comments), because listing them here
+# would publish them. A machine without that file refuses every commit and
+# push until it exists, so a fresh clone cannot leak by default.
+#
+# Usage: private-terms staged | message <file> | push (reads pre-push stdin)
+
+set -euo pipefail
+
+terms="${CLAUDE_HOOKS_PRIVATE_TERMS:-$HOME/.config/claude-hooks/private-terms}"
+
+if [[ ! -s "$terms" ]]; then
+    echo "claude-hooks: $terms is missing or empty." >&2
+    echo "Create it with the private terms for this machine before committing." >&2
+    exit 1
+fi
+
+patterns=$(grep -vE '^\s*(#|$)' "$terms")
+
+scan() {
+    local hits
+    hits=$(grep -inE -f <(printf '%s\n' "$patterns") || true)
+    if [[ -n "$hits" ]]; then
+        echo "claude-hooks: private terms in $1 (this repo is public):" >&2
+        printf '%s\n' "$hits" | head -20 >&2
+        exit 1
+    fi
+}
+
+added_lines() {
+    grep -E '^\+' | grep -vE '^\+\+\+ ' || true
+}
+
+case "${1:-}" in
+    staged)
+        git diff --cached -U0 | added_lines | scan "the staged changes"
+        ;;
+    message)
+        grep -v '^#' "$2" | scan "the commit message"
+        ;;
+    push)
+        zero=0000000000000000000000000000000000000000
+        while read -r _ local_sha _ remote_sha; do
+            [[ "$local_sha" == "$zero" ]] && continue
+            if [[ "$remote_sha" == "$zero" ]]; then
+                range="$local_sha"
+            else
+                range="$remote_sha..$local_sha"
+            fi
+            git log -p --format='%B' "$range" | added_lines | scan "the pushed commits"
+            git log --format='%B' "$range" | scan "the pushed commit messages"
+        done
+        ;;
+    *)
+        echo "usage: private-terms staged | message <file> | push" >&2
+        exit 2
+        ;;
+esac
