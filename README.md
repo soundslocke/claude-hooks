@@ -6,7 +6,9 @@ tool call cost 15 to 30 ms, and this runs in under a millisecond.
 
 On PreToolUse the binary reads the payload on stdin, picks the guards for
 `tool_name` and prints a `permissionDecision: deny` JSON object when one
-objects. Silence means allow. On Stop it prints an advisory list of shells the
+objects. Failing that, a confirm guard can print `permissionDecision: ask`,
+which holds the call on a yes/no prompt until the user answers. Silence means
+allow. On Stop it prints an advisory list of shells the
 session has left running for over 30 minutes, read from `/proc` (Linux only).
 
 | Guard | Tools | Denies |
@@ -16,6 +18,10 @@ session has left running for over 30 minutes, read from `/proc` (Linux only).
 | `waiter-loop` | Bash, Monitor | `while`/`until` loops that sleep (`timeout` or not), spin, or probe for a process (`pgrep`, `kill -0`), `for` loops that poll past five minutes, and follows of files under `/tmp` |
 | `query-budget` | Bash, Monitor, Boost `database-query` | `artisan tinker` without `--execute`; tinker and `mysql`/`mariadb` runs not bounded to two minutes by both `timeout` and a server-side `max_statement_time` or `MAX_EXECUTION_TIME` hint; `database-query` SELECTs without a `MAX_EXECUTION_TIME` hint of at most 120000 |
 | `emdash` | Write, Edit, MultiEdit | an em dash entering any file |
+
+| Confirm guard | Tools | Asks before |
+|---|---|---|
+| `remote-access` | Bash, Monitor | any command, or script it names, that mentions `ssh`, `scp`, `sftp`, `rsync`, `nc`, `socat`, `/dev/tcp/` or another remote shell, tunnel or file transfer, even read-only |
 
 ## Install
 
