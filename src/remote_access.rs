@@ -10,9 +10,11 @@
 //! Matching is deliberately broad. A program name counts wherever it stands as
 //! a whole word once quotes and backslashes are removed, so `sudo ssh`,
 //! `/usr/bin/ssh`, `bash -c "ssh ..."`, `X=ssh` and `s''sh` all ask, and so
-//! does prose that merely mentions one. Scripts the command names are read and
-//! checked the same way, which catches a `fetch.nu` that runs `scp`. A false
-//! positive costs one prompt; a miss costs a connection nobody approved.
+//! does prose that merely mentions one. A script the command runs, as its
+//! program or through a launcher such as `bash`, `nu` or `sudo`, is read and
+//! checked the same way, which catches a `fetch.nu` that runs `scp`. A file the
+//! command only reads, as `grep` or `wc` would, is data and is not checked. A
+//! false positive costs one prompt; a miss costs a connection nobody approved.
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -52,15 +54,27 @@ const PROGRAMS: &[&str] = &[
 /// Bash opens a raw socket for a redirect to one of these, with no program.
 const DEVICES: &[&str] = &["/dev/tcp/", "/dev/udp/"];
 
-const SCRIPT_EXTENSIONS: &[&str] = &[
-    "sh", "bash", "zsh", "fish", "nu", "py", "js", "mjs", "cjs", "ts", "php", "pl", "rb",
+/// Commands that run the word after them as a program or script. A version
+/// suffix is ignored, so `python3` and `php8.3` count.
+const LAUNCHERS: &[&str] = &[
+    "sudo", "doas", "env", "nohup", "time", "nice", "ionice", "exec", "command", "builtin",
+    "timeout", "xargs", "stdbuf", "watch", "source", ".", "sh", "bash", "zsh", "dash", "ksh",
+    "fish", "nu", "python", "php", "perl", "ruby", "node", "deno", "bun", "tsx", "ts-node",
 ];
+/// Shell keywords that can stand before a segment's program.
+const KEYWORDS: &[&str] = &["if", "then", "elif", "else", "while", "until", "do", "!", "{"];
+/// Launcher options that take the next word as their value, as in
+/// `sudo -u deploy` or `xargs -n 1`.
+const VALUE_OPTIONS: &[&str] = &["-u", "-g", "-n", "-k", "-C", "-I", "-P", "-m"];
 const MAX_SCRIPT_BYTES: u64 = 256 * 1024;
 
 /// A whole word as a program name is spelled; `-` and `.` stay inside it so
 /// `ssh-keygen` and `~/.ssh` are not mistaken for `ssh`.
 static WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[A-Za-z0-9_.+-]+").unwrap());
-static ARGUMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[^\s;|&()<>`=]+").unwrap());
+/// Separators between simple commands, each of which runs one program.
+static SEGMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[;&|()`\n]+").unwrap());
+/// A count or duration such as `timeout 5s` takes.
+static NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[0-9.]+[smhd]?$").unwrap());
 static CD: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)(?:^|[;&|(])\s*cd\s+([^\s;&|)]+)").unwrap());
 
@@ -109,7 +123,8 @@ fn remote_programs(text: &str) -> Vec<String> {
     found
 }
 
-/// Script files the command names: by extension, or any executable path.
+/// Script files the command runs: a path it executes, or a file a launcher
+/// such as `bash` or `nu` runs. Files it only reads are left alone.
 fn scripts(command: &str, cwd: &str) -> Vec<PathBuf> {
     let plain = unquote(command);
     let mut bases = vec![PathBuf::from(cwd)];
@@ -118,20 +133,20 @@ fn scripts(command: &str, cwd: &str) -> Vec<PathBuf> {
     }
 
     let mut found: Vec<PathBuf> = Vec::new();
-    for argument in ARGUMENT.find_iter(&plain) {
-        let argument = argument.as_str();
-        let named = argument
-            .rsplit_once('.')
-            .is_some_and(|(_, ext)| SCRIPT_EXTENSIONS.contains(&ext));
-        if !named && !argument.contains('/') {
+    for segment in SEGMENT.split(&plain) {
+        let Some((program, launched)) = program_of(segment) else {
+            continue;
+        };
+        // A bare name runs from PATH unless a launcher reads it as a file.
+        if !launched && !program.contains('/') {
             continue;
         }
         for base in &bases {
-            let path = resolve(argument, base);
+            let path = resolve(program, base);
             let Ok(meta) = std::fs::metadata(&path) else {
                 continue;
             };
-            let runnable = named || meta.permissions().mode() & 0o111 != 0;
+            let runnable = launched || meta.permissions().mode() & 0o111 != 0;
             if meta.is_file() && meta.len() <= MAX_SCRIPT_BYTES && runnable {
                 if !found.contains(&path) {
                     found.push(path);
@@ -141,6 +156,33 @@ fn scripts(command: &str, cwd: &str) -> Vec<PathBuf> {
         }
     }
     found
+}
+
+/// The word a simple command runs as its program, past any assignments,
+/// keywords, launchers and their options, and whether a launcher ran it.
+fn program_of(segment: &str) -> Option<(&str, bool)> {
+    let mut launched = false;
+    let mut words = segment.split_whitespace();
+    while let Some(word) = words.next() {
+        let passed = word.contains('=')
+            || word.starts_with('-')
+            || NUMBER.is_match(word)
+            || KEYWORDS.contains(&word);
+        if VALUE_OPTIONS.contains(&word) {
+            words.next();
+        } else if is_launcher(word) {
+            launched = true;
+        } else if !passed {
+            return Some((word, launched));
+        }
+    }
+    None
+}
+
+fn is_launcher(word: &str) -> bool {
+    let name = word.rsplit('/').next().unwrap_or(word);
+    let unversioned = name.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
+    LAUNCHERS.contains(&name) || LAUNCHERS.contains(&unversioned)
 }
 
 /// Removes the quoting and escapes a shell would, so `s''sh` reads as `ssh`.
@@ -264,6 +306,43 @@ mod tests {
         assert!(bash(&format!("{dir}/tool")).is_some());
         assert!(bash_in(dir, "./build.sh").is_none());
         assert!(bash_in(dir, "wc -l ./notes").is_none());
+    }
+
+    #[test]
+    fn reads_scripts_however_they_are_launched() {
+        let scratch = Scratch::new("launched");
+        let dir = scratch.0.to_str().unwrap();
+        scratch.write("fetch.nu", "scp deploy@example.com:/a.txt .\n", 0o644);
+        scratch.write("tool", "#!/bin/sh\nrsync -a a/ example.com:b/\n", 0o755);
+
+        assert!(bash_in(dir, "sudo -u deploy nu fetch.nu").is_some());
+        assert!(bash_in(dir, "timeout 5s ./tool").is_some());
+        assert!(bash_in(dir, "/usr/bin/env FOO=1 python3 fetch.nu").is_some());
+        assert!(bash_in(dir, "source fetch.nu").is_some());
+        assert!(bash_in(dir, ". ./fetch.nu").is_some());
+        assert!(bash_in(dir, "if ./tool; then echo ok; fi").is_some());
+        assert!(bash_in(dir, "ls | xargs -n 1 ./tool").is_some());
+        assert!(bash_in(dir, "echo $(./tool)").is_some());
+    }
+
+    #[test]
+    fn ignores_scripts_the_command_only_reads() {
+        let scratch = Scratch::new("read");
+        let app = scratch.0.join("app");
+        std::fs::create_dir_all(app.join("config")).unwrap();
+        // A state list in a regex names `nc`, as North Carolina.
+        std::fs::write(app.join("config/states.php"), "'/(ca|nc|ny)/'\n").unwrap();
+        scratch.write("fetch.nu", "scp deploy@example.com:/a.txt .\n", 0o755);
+        let dir = scratch.0.to_str().unwrap();
+
+        let read = format!(
+            "cd {}; ls config/states.php 2>&1; grep -n x config/states.php; wc -l config/states.php",
+            app.display()
+        );
+        assert!(bash(&read).is_none());
+        assert!(bash_in(dir, "grep -n deploy fetch.nu").is_none());
+        assert!(bash_in(dir, "cat ./fetch.nu | head").is_none());
+        assert!(bash_in(dir, "cp fetch.nu fetch.nu.bak").is_none());
     }
 
     #[test]

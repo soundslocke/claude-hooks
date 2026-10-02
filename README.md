@@ -21,7 +21,7 @@ session has left running for over 30 minutes, read from `/proc` (Linux only).
 
 | Confirm guard | Tools | Asks before |
 |---|---|---|
-| `remote-access` | Bash, Monitor | any command, or script it names, that mentions `ssh`, `scp`, `sftp`, `rsync`, `nc`, `socat`, `/dev/tcp/` or another remote shell, tunnel or file transfer, even read-only |
+| `remote-access` | Bash, Monitor | any command, or script it runs, that mentions `ssh`, `scp`, `sftp`, `rsync`, `nc`, `socat`, `/dev/tcp/` or another remote shell, tunnel or file transfer, even read-only |
 
 ## Install
 
