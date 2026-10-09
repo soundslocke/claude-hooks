@@ -75,7 +75,7 @@ static WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[A-Za-z0-9_.+-]+").
 static SEGMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[;&|()`\n]+").unwrap());
 /// A count or duration such as `timeout 5s` takes.
 static NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[0-9.]+[smhd]?$").unwrap());
-static CD: LazyLock<Regex> =
+pub(crate) static CD: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)(?:^|[;&|(])\s*cd\s+([^\s;&|)]+)").unwrap());
 
 const ASK: &str = "CONFIRM: this command may connect to another machine.
@@ -192,7 +192,7 @@ fn unquote(text: &str) -> String {
         .collect()
 }
 
-fn resolve(path: &str, base: &Path) -> PathBuf {
+pub(crate) fn resolve(path: &str, base: &Path) -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_default();
     for prefix in ["~/", "$HOME/", "${HOME}/"] {
         if let Some(rest) = path.strip_prefix(prefix) {

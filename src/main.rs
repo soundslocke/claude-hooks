@@ -10,6 +10,7 @@ mod payload;
 mod query_budget;
 mod remote_access;
 mod stale_shells;
+mod stale_vendor;
 mod waiter_loop;
 
 use std::io::Read;
@@ -23,6 +24,7 @@ const BASH_GUARDS: &[(&str, Guard)] = &[
     ("branch-upstream", branch_upstream::check),
     ("waiter-loop", waiter_loop::check),
     ("query-budget", query_budget::check),
+    ("stale-vendor", stale_vendor::check),
 ];
 /// Guards that ask the user to confirm instead of denying outright.
 const BASH_CONFIRM_GUARDS: &[(&str, Guard)] = &[("remote-access", remote_access::check)];

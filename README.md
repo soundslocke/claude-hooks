@@ -17,6 +17,7 @@ session has left running for over 30 minutes, read from `/proc` (Linux only).
 | `branch-upstream` | Bash, Monitor | branches created from `origin/<other>` without `--no-track`, and upstream changes to another branch |
 | `waiter-loop` | Bash, Monitor | `while`/`until` loops that sleep (`timeout` or not), spin, or probe for a process (`pgrep`, `kill -0`), `for` loops that poll past five minutes, and follows of files under `/tmp` |
 | `query-budget` | Bash, Monitor, Boost `database-query` | `artisan tinker` without `--execute`; tinker and `mysql`/`mariadb` runs not bounded to two minutes by both `timeout` and a server-side `max_statement_time` or `MAX_EXECUTION_TIME` hint; `database-query` SELECTs without a `MAX_EXECUTION_TIME` hint of at most 120000 |
+| `stale-vendor` | Bash, Monitor | `artisan test`, `artisan migrate*`, `artisan dusk`, `pest`, `phpunit` and `paratest` while `vendor/composer/installed.json` differs from `composer.lock`, naming the drifted packages |
 | `emdash` | Write, Edit, MultiEdit | an em dash entering any file |
 
 | Confirm guard | Tools | Asks before |
